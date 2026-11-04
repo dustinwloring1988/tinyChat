@@ -1,4 +1,5 @@
 #!/bin/bash
+set -eo pipefail
 
 # Train a small Qwen-style language model (pretraining + finetuning) on one CUDA GPU.
 
@@ -63,16 +64,17 @@ echo "Waiting for dataset download to complete..."
 wait $DATASET_DOWNLOAD_PID
 
 # Small Qwen-style model sized for a single GPU. Lower the batch size if VRAM is limited.
-torchrun --standalone --nproc_per_node=1 -m scripts.base_train -- --depth=12 --max-seq-len=4096 --target-param-data-ratio=8 --device-batch-size=4 --run=$WANDB_RUN
+MODEL_TAG=tinychat-qwen
+torchrun --standalone --nproc_per_node=1 -m scripts.base_train -- --depth=12 --max-seq-len=4096 --target-param-data-ratio=8 --device-batch-size=4 --model-tag=$MODEL_TAG --run=$WANDB_RUN
 # evaluate the model: CORE metric, BPB on train/val, and draw samples
-torchrun --standalone --nproc_per_node=1 -m scripts.base_eval -- --device-batch-size=4
+torchrun --standalone --nproc_per_node=1 -m scripts.base_eval -- --model-tag=$MODEL_TAG --device-batch-size=4
 
 # -----------------------------------------------------------------------------
 # SFT (teach the model conversation special tokens, tool use, multiple choice)
 
 # run SFT and eval the model
-torchrun --standalone --nproc_per_node=1 -m scripts.chat_sft -- --device-batch-size=4 --run=$WANDB_RUN
-torchrun --standalone --nproc_per_node=1 -m scripts.chat_eval -- -i sft
+torchrun --standalone --nproc_per_node=1 -m scripts.chat_sft -- --model-tag=$MODEL_TAG --device-batch-size=4 --run=$WANDB_RUN
+torchrun --standalone --nproc_per_node=1 -m scripts.chat_eval -- -i sft --model-tag=$MODEL_TAG
 
 # chat with the model over CLI! Leave out the -p to chat interactively
 # python -m scripts.chat_cli -p "Why is the sky blue?"

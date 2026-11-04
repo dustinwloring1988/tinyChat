@@ -80,8 +80,8 @@ class CausalSelfAttention(nn.Module):
         if self.rotary_dim == 0:
             return x
         x_rot, x_pass = x[..., :self.rotary_dim], x[..., self.rotary_dim:]
-        cos = cos[..., :self.rotary_dim // 2]
-        sin = sin[..., :self.rotary_dim // 2]
+        cos = cos[..., :self.rotary_dim]
+        sin = sin[..., :self.rotary_dim]
         x_rot = (x_rot * cos) + (self._rotate_half(x_rot) * sin)
         return torch.cat((x_rot, x_pass), dim=-1)
 
@@ -169,7 +169,8 @@ class GPT(nn.Module):
         inv_freq = 1.0 / (config.rope_theta ** (torch.arange(0, rotary_dim, 2, device=device, dtype=torch.float32) / rotary_dim))
         positions = torch.arange(seq_len, device=device, dtype=torch.float32)
         freqs = torch.outer(positions, inv_freq)
-        cos, sin = freqs.cos().to(COMPUTE_DTYPE), freqs.sin().to(COMPUTE_DTYPE)
+        cos = torch.cat((freqs.cos(), freqs.cos()), dim=-1).to(COMPUTE_DTYPE)
+        sin = torch.cat((freqs.sin(), freqs.sin()), dim=-1).to(COMPUTE_DTYPE)
         return cos[None, :, None, :], sin[None, :, None, :]
 
     @torch.no_grad()
